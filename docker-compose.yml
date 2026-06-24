@@ -1,0 +1,116 @@
+services:
+  logistics-mvp:
+    image: astana-logistics-mvp:local
+    build:
+      context: .
+      network: none
+    container_name: astana-logistics-mvp
+    restart: unless-stopped
+    expose:
+      - "3000"
+    environment:
+      - HOST=0.0.0.0
+      - PORT=3000
+      - APP_TIME_ZONE=Asia/Almaty
+      - DATABASE_URL=postgres://${POSTGRES_USER:-logistics}:${POSTGRES_PASSWORD:?Run node tools/generate_env.js}@postgres:5432/${POSTGRES_DB:-logistics_mvp}
+      - COOKIE_SECURE=${COOKIE_SECURE:-false}
+      - BOOTSTRAP_ADMIN_USERNAME=${BOOTSTRAP_ADMIN_USERNAME:?Run node tools/generate_env.js}
+      - BOOTSTRAP_ADMIN_PASSWORD=${BOOTSTRAP_ADMIN_PASSWORD:?Run node tools/generate_env.js}
+      - BOOTSTRAP_INITIATOR_USERNAME=${BOOTSTRAP_INITIATOR_USERNAME:?Run node tools/generate_env.js}
+      - BOOTSTRAP_INITIATOR_PASSWORD=${BOOTSTRAP_INITIATOR_PASSWORD:?Run node tools/generate_env.js}
+      - BOOTSTRAP_OPERATOR_USERNAME=${BOOTSTRAP_OPERATOR_USERNAME:?Run node tools/generate_env.js}
+      - BOOTSTRAP_OPERATOR_PASSWORD=${BOOTSTRAP_OPERATOR_PASSWORD:?Run node tools/generate_env.js}
+      - BOOTSTRAP_VERIFIER_USERNAME=${BOOTSTRAP_VERIFIER_USERNAME:?Run node tools/generate_env.js}
+      - BOOTSTRAP_VERIFIER_PASSWORD=${BOOTSTRAP_VERIFIER_PASSWORD:?Run node tools/generate_env.js}
+      - BOOTSTRAP_EXECUTION_USERNAME=${BOOTSTRAP_EXECUTION_USERNAME:?Run node tools/generate_env.js}
+      - BOOTSTRAP_EXECUTION_PASSWORD=${BOOTSTRAP_EXECUTION_PASSWORD:?Run node tools/generate_env.js}
+      - OLLAMA_URL=http://ollama:11434
+      - OLLAMA_MODEL=mistral:7b-instruct-q4_0
+      - OLLAMA_TIMEOUT_MS=150000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    networks:
+      - app-ingress
+      - offline-data
+
+  lan-gateway:
+    image: astana-logistics-mvp:local
+    pull_policy: never
+    container_name: astana-logistics-lan-gateway
+    restart: unless-stopped
+    command: ["node", "tools/lan_proxy.js"]
+    environment:
+      - HOST=0.0.0.0
+      - PORT=3000
+      - TARGET_HOST=logistics-mvp
+      - TARGET_PORT=3000
+    ports:
+      - "0.0.0.0:${APP_PORT:-3000}:3000"
+    depends_on:
+      logistics-mvp:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - lan-access
+      - app-ingress
+
+  postgres:
+    image: postgres:16-alpine
+    pull_policy: never
+    container_name: astana-logistics-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB:-logistics_mvp}
+      - POSTGRES_USER=${POSTGRES_USER:-logistics}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?Run node tools/generate_env.js}
+    expose:
+      - "5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - offline-data
+
+  ollama:
+    image: ollama/ollama:latest
+    pull_policy: never
+    container_name: astana-logistics-ollama
+    restart: unless-stopped
+    expose:
+      - "11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    networks:
+      - offline-data
+
+volumes:
+  postgres-data:
+  ollama-data:
+
+networks:
+  lan-access:
+    driver: bridge
+  app-ingress:
+    driver: bridge
+    internal: true
+  offline-data:
+    driver: bridge
+    internal: true

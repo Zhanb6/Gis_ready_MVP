@@ -1,0 +1,17 @@
+{
+  "name": "astana-hub-logistics-mvp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Offline MVP logistics planning platform from technical specification",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "security-check": "node tools/security_check.js && npm audit --omit=dev --audit-level=high"
+  },
+  "dependencies": {
+    "pg": "^8.13.1"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
