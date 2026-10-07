@@ -9,7 +9,7 @@
     "security-check": "node tools/security_check.js && npm audit --omit=dev --audit-level=high"
   },
   "dependencies": {
-    "pg": "^8.13.1"
+    "pg": "^8.23.1"
   },
   "engines": {
     "node": ">=20"
